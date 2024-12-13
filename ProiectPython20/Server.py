@@ -67,6 +67,11 @@ def handle_player(player_socket, addr):
             # Determină rezultatul pentru jucător
             result = determine_result(player_choice, server_choice)
             result_message = f"Server chose: {server_choice}. You {result}!\n"
+            if result == 'lose':
+                print(f"Player {addr} lost!")
+            elif result == 'draw':
+                print(f"You and player {addr} draw!")
+            else: print(f"Player {addr} won!")
 
             player_socket.sendall(result_message.encode())
 
