@@ -5,6 +5,7 @@ import random
 MAX_PLAYERS = 3
 connected_players = []
 lock = threading.Lock()
+MOVES = {"rock", "paper", "scissors", "lizard", "spock"}
 
 def determine_result(player_choice, server_choice):
     if player_choice == server_choice:
@@ -55,11 +56,11 @@ def handle_player(player_socket, addr):
                 player_socket.sendall("You chose to exit the game. Goodbye!\n".encode())
                 break
 
-            if player_choice not in RULES:
+            if player_choice not in MOVES:
                 player_socket.sendall("Invalid move. Try again.\n".encode())
                 continue
 
-            server_choice = random.choice(list(RULES.keys()))
+            server_choice = random.choice(list(MOVES))
             print(f"Server choice for this round: {server_choice}")
             print(f"Player {addr} chose: {player_choice}")
 
