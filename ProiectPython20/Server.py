@@ -3,97 +3,84 @@ import threading
 import random
 
 MAX_PLAYERS = 3
-connected_players = []
+current_players = []
 lock = threading.Lock()
-MOVES = {"rock", "paper", "scissors", "lizard", "spock"}
+VALID_MOVES = {"rock", "paper", "scissors", "lizard", "spock"}
 
-def determine_result(player_choice, server_choice):
-    if player_choice == server_choice:
+def determine_outcome(player_move, server_move):
+    if player_move == server_move:
         return "draw"
 
-    if player_choice == "rock":
-        if server_choice in ["scissors", "lizard"]:
-            return "win"
-        else:
-            return "lose"
+    if player_move == "rock":
+        return "win" if server_move in ["scissors", "lizard"] else "lose"
 
-    elif player_choice == "paper":
-        if server_choice in ["rock", "spock"]:
-            return "win"
-        else:
-            return "lose"
+    if player_move == "paper":
+        return "win" if server_move in ["rock", "spock"] else "lose"
 
-    elif player_choice == "scissors":
-        if server_choice in ["paper", "lizard"]:
-            return "win"
-        else:
-            return "lose"
+    if player_move == "scissors":
+        return "win" if server_move in ["paper", "lizard"] else "lose"
 
-    elif player_choice == "lizard":
-        if server_choice in ["spock", "paper"]:
-            return "win"
-        else:
-            return "lose"
+    if player_move == "lizard":
+        return "win" if server_move in ["spock", "paper"] else "lose"
 
-    elif player_choice == "spock":
-        if server_choice in ["scissors", "rock"]:
-            return "win"
-        else:
-            return "lose"
+    if player_move == "spock":
+        return "win" if server_move in ["scissors", "rock"] else "lose"
 
     return "invalid"
 
-def handle_player(player_socket, addr):
-    print(f"Player {addr} connected.")
-    player_socket.sendall(f"Welcome! The server already chose, now it's your turn!\n".encode())
+def handle_client(client_socket, client_address):
+
+    print(f"Player {client_address} connected.")
+    client_socket.sendall("Welcome! The server already chose, now it's your turn!\n".encode())
 
     try:
         while True:
-            player_socket.sendall("Enter your move (rock, paper, scissors, lizard, spock) or type 'exit' to leave: ".encode())
-            player_choice = player_socket.recv(1024).decode().strip().lower()
+            client_socket.sendall("Enter your move (rock, paper, scissors, lizard, spock) or type 'exit' to leave: ".encode())
+            player_move = client_socket.recv(1024).decode().strip().lower()
 
-            if player_choice == "exit":
-                player_socket.sendall("You chose to exit the game. Goodbye!\n".encode())
+            if player_move == "exit":
+                client_socket.sendall("You chose to exit the game. Goodbye!\n".encode())
                 break
 
-            if player_choice not in MOVES:
-                player_socket.sendall("Invalid move. Try again.\n".encode())
+            if player_move not in VALID_MOVES:
+                client_socket.sendall("Invalid move. Try again.\n".encode())
                 continue
 
-            server_choice = random.choice(list(MOVES))
-            print(f"Server choice for this round: {server_choice}")
-            print(f"Player {addr} chose: {player_choice}")
+            server_move = random.choice(list(VALID_MOVES))
+            print(f"Server choice for this round: {server_move}")
+            print(f"Player {client_address} chose: {player_move}")
 
-            # Determină rezultatul pentru jucător
-            result = determine_result(player_choice, server_choice)
-            result_message = f"Server chose: {server_choice}. You {result}!\n"
-            if result == 'lose':
-                print(f"Player {addr} lost!")
-            elif result == 'draw':
-                print(f"You and player {addr} draw!")
-            else: print(f"Player {addr} won!")
+            result = determine_outcome(player_move, server_move)
+            result_message = f"Server chose: {server_move}. You {result}!\n"
 
-            player_socket.sendall(result_message.encode())
-
-            # Dacă jucătorul pierde, încheiem jocul pentru el
             if result == "lose":
-                player_socket.sendall("You lost! Disconnecting...\n".encode())
+                print(f"Player {client_address} lost.")
+            elif result == "draw":
+                print(f"You and player {client_address} drew!")
+            else:
+                print(f"Player {client_address} won!")
+
+            client_socket.sendall(result_message.encode())
+
+            if result == "lose":
+                client_socket.sendall("You lost! Disconnecting...\n".encode())
                 break
 
-    except Exception as e:
-        print(f"Error with player {addr}: {e}")
+    except Exception as error:
+        print(f"Error with player {client_address}: {error}")
 
     finally:
-        player_socket.close()
+        client_socket.close()
         with lock:
-            connected_players.remove(player_socket)
-        print(f"Player {addr} disconnected.")
+            current_players.remove(client_socket)
+        print(f"Player {client_address} disconnected.")
 
-def handle_rejected_player(client_socket):
+def reject_client(client_socket):
+
     try:
         client_socket.sendall("Server is full. You cannot join at the moment. Goodbye!\n".encode())
-    except Exception as e:
-        print(f"Error sending rejection message: {e}")
+    except Exception as error:
+        print(f"Error sending rejection message: {error}")
     finally:
         client_socket.close()
 
@@ -109,15 +96,15 @@ def main():
     print(f"Server started on {host}:{port}. Waiting for players...")
 
     while True:
-        client_socket, addr = server_socket.accept()
+        client_socket, client_address = server_socket.accept()
 
         with lock:
-            if len(connected_players) < MAX_PLAYERS:
-                connected_players.append(client_socket)
-                threading.Thread(target=handle_player, args=(client_socket, addr)).start()
+            if len(current_players) < MAX_PLAYERS:
+                current_players.append(client_socket)
+                threading.Thread(target=handle_client, args=(client_socket, client_address)).start()
             else:
-                print(f"Rejecting connection from {addr}: server is full.")
-                threading.Thread(target=handle_rejected_player, args=(client_socket,)).start()
+                print(f"Rejecting connection from {client_address}: server is full.")
+                threading.Thread(target=reject_client, args=(client_socket,)).start()
 
 if __name__ == "__main__":
     main()
